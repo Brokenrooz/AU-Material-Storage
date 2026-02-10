@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>AU Material Storage</title>
+
+    <style>
+        body {
+            margin: 0;
+            background: #0f0f0f;
+            color: #d0d0d0;
+            font-family: monospace;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        .intro {
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .intro h1 {
+            margin-bottom: 1rem;
+        }
+
+        .intro p {
+            opacity: 0.8;
+            line-height: 1.4;
+        }
+
+        .warning {
+            color: #ff5555;
+            margin-top: 1.5rem;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.5rem;
+            margin-top: 1rem;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #d0d0d0;
+            font-family: monospace;
+        }
+
+        button {
+            margin-top: 1rem;
+            padding: 0.5rem 1.5rem;
+            background: #333;
+            color: #d0d0d0;
+            border: none;
+            cursor: pointer;
+            font-family: monospace;
+        }
+
+        button:hover {
+            background: #444;
+        }
+
+
+
+        #confirm-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #confirm-box {
+            background: #111;
+            border: 1px solid #333;
+            padding: 1.5rem;
+            width: 420px;
+            text-align: center;
+        }
+
+        #confirm-box p {
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+
+        #confirm-box button {
+            background: #333;
+            border: none;
+            color: #d0d0d0;
+            padding: 0.4rem 1.2rem;
+            cursor: pointer;
+            font-family: monospace;
+        }
+
+        #confirm-box button:hover {
+            background: #444;
+        }
+
+
+
+        #boot-log {
+            margin-top: 1.5rem;
+            padding: 0.75rem;
+            background: #000;
+            color: #666;
+            font-size: 0.85rem;
+            font-family: monospace;
+            max-height: 160px;
+            overflow-y: hidden;
+            text-align: left;
+            display: none;
+        }
+
+
+
+        #character-select {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            color: #888;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-family: monospace;
+        }
+
+        #placeholder-text {
+            text-align: center;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+
+<body>
+
+
+
+    <div class="intro" id="intro-screen">
+        <h1>AU Material Storage</h1>
+
+        <p>
+            This application reads live account data from the Guild Wars 2 API.
+            It requires an account API key with appropriate permissions.
+        </p>
+
+        <p>
+            Nothing is uploaded. Nothing is stored remotely.
+            If you uninstall this app, your locally stored key is deleted alongside it.
+        </p>
+
+        <input
+            type="text"
+            id="api-key-input"
+            placeholder="Paste your shit here"
+        />
+
+        <button id="start-button">
+            Go
+        </button>
+
+        <div
+            class="warning"
+            id="warning-text"
+            style="display: none;">
+            Do not share your API key with anyone else.
+            This key is unique to your account.
+            If in the wrong hands, it could be used maliciously. UwU.
+        </div>
+
+        <div id="boot-log"></div>
+    </div>
+
+
+
+    <div id="confirm-modal">
+        <div id="confirm-box">
+            <p id="confirm-text"></p>
+            <button id="confirm-ok">OK</button>
+        </div>
+    </div>
+
+
+
+    <div id="character-select">
+        <div id="placeholder-text">
+            placeholder, yay you made it!<br />
+            now go to sleep, dumbass.
+        </div>
+    </div>
+
+    <script src="./renderer.js"></script>
+</body>
+</html>
