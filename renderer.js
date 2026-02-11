@@ -242,6 +242,7 @@ async function loadCharacterDetails(name, profElement) {
     detailPanel.innerHTML = "<div>Loading character...</div>";
 
     try {
+        console.log("Using API key:", apiKey);
         const response = await fetch(
             `https://api.guildwars2.com/v2/characters/${encodeURIComponent(name)}?access_token=${apiKey}`
         );
@@ -251,6 +252,7 @@ async function loadCharacterDetails(name, profElement) {
         }
 
         const data = await response.json();
+        console.log("FULL CHARACTER DATA:", data);
 
         if (profElement) {
             profElement.textContent = data.profession;
@@ -270,11 +272,24 @@ async function loadCharacterDetails(name, profElement) {
             }
         }
 
+        let mapName = "Unknown";
+
+        if (data.map_id) {
+            const mapRes = await fetch(
+                `https://api.guildwars2.com/v2/maps/${data.map_id}`
+            );
+
+            if (mapRes.ok) {
+                const mapData = await mapRes.json();
+                mapName = mapData.name;
+            }
+        }
+
         detailPanel.innerHTML = `
             <h2>${data.name}</h2>
             <p><strong>Profession:</strong> ${data.profession}</p>
             <p><strong>Level:</strong> ${data.level}</p>
-            <p><strong>Location:</strong> ${data.map_id}</p>
+            <p><strong>Location:</strong> ${mapName}</p>
             <p><strong>Elite Spec:</strong> ${eliteSpecName}</p>
         `;
     } catch (err) {
@@ -398,3 +413,186 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
 });
 
+let inventoryRenderToken = 0;
+STATES.INVENTORY_VIEW = "INVENTORY_VIEW";
+
+const inventoryCategories = [
+    "ALL ITEMS",
+    "WEAPONS",
+    "ARMOR",
+    "TRINKETS",
+    "CONSUMABLES",
+    "MATERIALS",
+    "MISC"
+];
+
+let currentInventoryCharacter = null;
+
+function renderInventoryView() {
+    document.getElementById("intro-screen").style.display = "none";
+    document.getElementById("key-confirm-screen").style.display = "none";
+    document.getElementById("character-select").style.display = "none";
+    document.getElementById("inventory-view").style.display = "grid";
+
+    renderInventoryCategories();
+    renderInventoryCommands();
+    renderInventoryGrid();
+}
+
+function renderInventoryCategories() {
+    const container = document.getElementById("inventory-categories");
+    container.innerHTML = "";
+
+    inventoryCategories.forEach((cat, index) => {
+        const entry = document.createElement("div");
+        entry.className = "terminal-entry";
+        entry.textContent = cat;
+
+        if (index === 0) entry.classList.add("active");
+
+        entry.addEventListener("click", () => {
+            document.querySelectorAll("#inventory-categories .terminal-entry")
+                .forEach(el => el.classList.remove("active"));
+            entry.classList.add("active");
+
+            renderInventoryGrid(cat);
+        });
+
+        container.appendChild(entry);
+    });
+}
+
+function renderInventoryCommands() {
+    const container = document.getElementById("inventory-commands");
+    container.innerHTML = "";
+
+    const returnEntry = document.createElement("div");
+    returnEntry.className = "terminal-entry active";
+    returnEntry.textContent = "RETURN TO CHARACTER SELECT";
+
+    returnEntry.addEventListener("click", () => {
+        document.getElementById("inventory-view").style.display = "none";
+        setState(STATES.CHARACTER_SELECT);
+    });
+
+    container.appendChild(returnEntry);
+}
+
+async function renderInventoryGrid(filter = "ALL ITEMS") {
+    const grid = document.getElementById("inventory-grid");
+    grid.innerHTML = "";
+
+    if (!currentInventoryCharacter) return;
+
+    const myToken = ++inventoryRenderToken;
+
+    try {
+        const response = await fetch(
+            `https://api.guildwars2.com/v2/characters/${encodeURIComponent(currentInventoryCharacter)}/inventory?access_token=${apiKey}`
+        );
+
+        if (!response.ok) throw new Error("Inventory fetch failed");
+
+        const data = await response.json();
+
+        const allItems = [];
+
+        data.bags.forEach(bag => {
+            if (!bag || !bag.inventory) return;
+            bag.inventory.forEach(item => {
+                if (item) allItems.push(item);
+            });
+        });
+
+        for (const item of allItems) {
+
+            // Abort if a newer render started
+            if (myToken !== inventoryRenderToken) return;
+
+            const itemRes = await fetch(
+                `https://api.guildwars2.com/v2/items/${item.id}`
+            );
+
+            if (!itemRes.ok) continue;
+
+            const itemData = await itemRes.json();
+            if (filter !== "ALL ITEMS") {
+
+                const type = itemData.type;
+
+                const matches =
+                    (filter === "WEAPONS" && type === "Weapon") ||
+                    (filter === "ARMOR" && type === "Armor") ||
+                    (filter === "TRINKETS" && type === "Trinket") ||
+                    (filter === "CONSUMABLES" && type === "Consumable") ||
+                    (filter === "MATERIALS" && type === "CraftingMaterial") ||
+                    (filter === "MISC" && 
+                        type !== "Weapon" &&
+                        type !== "Armor" &&
+                        type !== "Trinket" &&
+                        type !== "Consumable" &&
+                        type !== "CraftingMaterial"
+                );
+
+            if (!matches) continue;
+}
+
+            const slot = document.createElement("div");
+            slot.className = "item-slot";
+
+            const img = document.createElement("img");
+            img.src = itemData.icon;
+            img.title = itemData.name;
+
+            slot.appendChild(img);
+
+            if (item.count && item.count > 1) {
+                const count = document.createElement("div");
+                count.className = "item-count";
+                count.textContent = item.count;
+                slot.appendChild(count);
+            }
+
+            grid.appendChild(slot);
+        }
+
+    } catch (err) {
+        console.error("Inventory load failed:", err);
+        grid.innerHTML = "<div>Failed to load inventory.</div>";
+    }
+}
+
+
+//add inventory button to char deets
+
+const originalLoadCharacterDetails = loadCharacterDetails;
+
+loadCharacterDetails = async function(name, profElement) {
+    await originalLoadCharacterDetails(name, profElement);
+
+    const detailPanel = document.getElementById("character-details");
+
+    const inventoryBtn = document.createElement("button");
+    inventoryBtn.className = "account-btn";
+    inventoryBtn.textContent = "View Inventory";
+
+    inventoryBtn.addEventListener("click", () => {
+        currentInventoryCharacter = name;
+        setState(STATES.INVENTORY_VIEW);
+        renderInventoryView();
+    });
+
+    detailPanel.appendChild(document.createElement("br"));
+    detailPanel.appendChild(inventoryBtn);
+};
+
+//render() extends to support inv view
+
+const originalRender = render;
+
+render = function() {
+    originalRender();
+    if (currentState === STATES.INVENTORY_VIEW) {
+        renderInventoryView();
+    }
+};

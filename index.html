@@ -179,6 +179,82 @@
         .account-btn:hover {
             background: #222;
         }
+
+        /*Advanced Character View*/        
+        .terminal-entry {
+            padding: 0.4rem 0.2rem;
+            cursor: pointer;
+            color: #a06666;
+        }
+
+        .terminal-entry.active {
+            color: #d1c4c4;
+        }
+
+        .terminal-entry:hover {
+            background: #1a1a1a;
+        }
+
+        .item-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, 48px);
+            gap: 6px;
+            padding-top: 1rem;
+            overflow-y: auto;
+        }
+
+        .item-slot {
+            width: 48px;
+            height: 48px;
+            background: #111;
+            position: relative;
+        }
+
+        .item-slot img {
+            width: 100%;
+            height: 100%;
+        }
+
+        .item-count {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 0.75rem;
+            color: #d0d0d0;
+        }
+
+        #inventory-view {
+            position: fixed;
+            inset: 0;
+            background: #0b0f0b;
+            display: none;
+            grid-template-columns: 1fr 2fr 1fr;
+            color: #b9aaaa;
+            font-family: monospace;
+        }
+
+        #inventory-categories {
+            border-right: 1px solid #222;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+
+        #inventory-grid-container {
+            padding: 1.5rem;
+        }
+
+        #inventory-commands {
+            border-left: 1px solid #222;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+
+<body>
+
     </style>
 </head>
 
@@ -232,7 +308,7 @@
 
     <div style="
         background:#000;
-        color:#0f0;
+        color:rgb(145, 41, 0);
         padding:1.5rem;
         width:520px;
         font-family:monospace;
@@ -247,7 +323,7 @@
                 maxlength="1"
                 style="
                     background:#000;
-                    color:#0f0;
+                    color:rgb(145, 41, 0);
                     border:none;
                     outline:none;
                     font-family:monospace;
@@ -265,7 +341,7 @@
     <div id="character-list"></div>
 
     <!--CENTER - Advanced Info-->
-    <div id="character-info">
+    <div id="character-details">
         <h2>Character Information</h2>
         <p>Select a character to view details.</p>
     </div>
@@ -276,7 +352,23 @@
         <button class="account-btn">Account-wide Bank Tabs</button>
     </div>
 </div>
+<div id="inventory-view">
+
+    <!--LEFT - Categories-->
+    <div id="inventory-categories"></div>
+
+    <!--CENTER - Item Grid-->
+    <div id="inventory-grid-container">
+        <h2>Inventory</h2>
+        <div id="inventory-grid" class="item-grid"></div>
+    </div>
+
+    <!--RIGHT - Commands-->
+    <div id="inventory-commands"></div>
+
+</div>
 
 <script src="./renderer.js"></script>
+<!-- <script src="https://unpkg.com/armory-embeds@latest/dist/armory-embeds.min.js"></script> // potential usage at further date -->
 </body>
 </html>
