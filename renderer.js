@@ -16,7 +16,15 @@ const STATES = {
 let currentState = STATES.INTRO;
 
 function setState(newState) {
+    if (currentState === newState) return;
+
+    console.log("STATE CHANGE:", currentState, "→", newState);
     currentState = newState;
+
+    if (newState === STATES.BOOTING) {
+        characterListLoaded = false;
+    }
+
     render();
 }
 
@@ -56,8 +64,10 @@ function renderKeyConfirm() {
 }
 
 function renderBooting() {
-    document.getElementById("intro-screen").style.display = "none";
+    console.log("renderBooting called");
+    //document.getElementById("intro-screen").style.display = "none"; 
     document.getElementById("key-confirm-screen").style.display = "none";
+    document.getElementById("character-select").style.display = "none";
     document.getElementById("boot-log").style.display = "block";
 }
 
@@ -70,8 +80,8 @@ function renderCharacterSelect() {
     characterSelect.style.display = "grid";
 
     if (!characterListLoaded) {
-        populateCharacterList();
         characterListLoaded = true;
+        populateCharacterList();
     }
 }
 
@@ -109,7 +119,7 @@ const confirmDialogs = [
     "You are about to give this app access to your account API data.",
     "This key can read your character and storage data.",
     "Confirm that you have correctly understood what this app is going to do.",
-    "Do not give out your fucking API key to anyone. Ever."
+    "Do not give out your API to people you don't fucking know."
 ];
 
 const bootMessages = [
@@ -124,18 +134,25 @@ const bootMessages = [
 ];
 
 function runBootSequence(onComplete) {
+    console.log("Boot started");
     const bootLog = document.getElementById("boot-log");
     bootLog.textContent = "";
     let index = 0;
 
     const interval = setInterval(() => {
-        bootLog.textContent += bootMessages[index] + "\n";
+        const line = document.createElement("div");
+        line.textContent = bootMessages[index];
+        bootLog.appendChild(line);
+
         index++;
         if (index >= bootMessages.length) {
             clearInterval(interval);
-            setTimeout(onComplete, 1800);
+
+            setTimeout(() => {
+                onComplete();
+            }, 2500);
         }
-    }, 1000);
+    }, 600);
 }
 
 // Wiring
@@ -161,9 +178,114 @@ function hashString(str) {
     return hash.toString();
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
+async function populateCharacterList() {
+    console.log("[DATA] populateCharacterList called");
 
-    // ---- Integrity Guard (SAFE POSITION) ----
+    const listContainer = document.getElementById("character-list");
+    if (!listContainer) {
+        console.error("character-list container is missing");
+        return;
+    }
+
+    listContainer.innerHTML = "<div>Loading characters...</div>";
+
+    try {
+        const response = await fetch(
+            `https://api.guildwars2.com/v2/characters?access_token=${apiKey}`
+        );
+
+        if (!response.ok) {
+            throw new Error("API request failed");
+        }
+
+        const characters = await response.json();
+
+        listContainer.innerHTML = "";
+
+        characters.forEach(name => {
+            const row = document.createElement("div");
+            row.className = "character-row";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = name;
+
+            const profSpan = document.createElement("span");
+            profSpan.className = "char-prof";
+            profSpan.textContent = "";
+
+            row.appendChild(nameSpan);
+            row.appendChild(profSpan);
+
+            row.addEventListener("click", () => {
+                document.querySelectorAll(".character-row")
+                    .forEach(el => el.classList.remove("active"));
+
+                row.classList.add("active");
+
+                loadCharacterDetails(name, profSpan);
+            });
+
+            listContainer.appendChild(row);
+        });
+
+        console.log("[DATA] Characters loaded:", characters.length);
+    } catch (err) {
+        console.error("[DATA] Character fetch failed:", err);
+        listContainer.innerHTML = "<div>Failed to load character.</div>";
+    }
+}
+
+async function loadCharacterDetails(name, profElement) {
+    console.log("[DATA] Loading details for:", name);
+
+    const detailPanel = document.getElementById("character-details");
+    detailPanel.innerHTML = "<div>Loading character...</div>";
+
+    try {
+        const response = await fetch(
+            `https://api.guildwars2.com/v2/characters/${encodeURIComponent(name)}?access_token=${apiKey}`
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to fetch character details");
+        }
+
+        const data = await response.json();
+
+        if (profElement) {
+            profElement.textContent = data.profession;
+        }
+
+        let eliteSpecName = "None";
+        const eliteId = data.specializations?.pve?.[2]?.id;
+
+        if (eliteId) {
+            const specRes = await fetch(
+                `https://api.guildwars2.com/v2/specializations/${eliteId}`
+            );
+
+            if (specRes.ok) {
+                const specData = await specRes.json();
+                eliteSpecName = specData.name;
+            }
+        }
+
+        detailPanel.innerHTML = `
+            <h2>${data.name}</h2>
+            <p><strong>Profession:</strong> ${data.profession}</p>
+            <p><strong>Level:</strong> ${data.level}</p>
+            <p><strong>Location:</strong> ${data.map_id}</p>
+            <p><strong>Elite Spec:</strong> ${eliteSpecName}</p>
+        `;
+    } catch (err) {
+        console.error(err);
+        detailPanel.innerHTML = "<div>Failed to load character.</div>";
+    }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+    characterListLoaded = false;
+
     const SHAME_HASH_KEY = "shameIntegrityHash";
     const currentShameHash = hashString(shameMessages.join("|"));
     const storedShameHash = localStorage.getItem(SHAME_HASH_KEY);
@@ -179,7 +301,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
     }
 
-    // ---- Normal Startup ----
     const savedKey = localStorage.getItem("gw2ApiKey");
 
     if (savedKey) {
@@ -217,44 +338,63 @@ document.addEventListener("DOMContentLoaded", async () => {
         startButton.textContent = "Confirm";
         modalText.textContent = confirmDialogs[0];
         modal.style.display = "flex";
-        confirmStep = 2;
+        confirmStep = 0;
+        modalOk.textContent = "Confirm";
     });
 
     modalOk.addEventListener("click", () => {
-        const dialogIndex = confirmstep - 2;
+        const dialogIndex = confirmStep;
+
+        if (dialogIndex >= confirmDialogs.length) {
+            console.log("Triggering BOOT state");
+    
+            modal.style.display = "none";
+            warningText.style.display = "block";
+
+            setState(STATES.BOOTING);
+            
+            setTimeout(() => {
+            console.log("Calling runBootSequence");
+            runBootSequence(() => {
+                console.log("Boot complete → switching to CHARACTER_SELECT");
+                setState(STATES.CHARACTER_SELECT);
+            });
+        }, 50);
+
+        return;
+    }
+
+        modalText.textContent = confirmDialogs[dialogIndex];
 
         if (dialogIndex === confirmDialogs.length - 1) {
-            modalText.style.color = "#ff5555";
             modalOk.textContent = "I understand";
+            modalText.style.color = "#ff5555";
         } else {
             modalOk.textContent = "Confirm";
             modalText.style.color = "#d0d0d0";
         }
 
-        if (dialogIndex < confirmDialogs.length) {
-            modalText.textContent = confirmDialogs[dialongIndex];
-            confirmStep++
-            return;
-        }
-
-        modal.style.display = "none";
-        warningText.style.display = "block";
-
-        setState(STATES.BOOTING);
-        runBootSequence(() => setState(STATES.CHARACTER_SELECT));
+        confirmStep++;
     });
-
 
     keyInput?.addEventListener("keydown", e => {
         if (e.key !== "Enter") return;
-        if (keyInput.value.toLowerCase() === "y") {
+
+        const value = keyInput.value.toLowerCase();
+
+        if (value === "y") {
             setState(STATES.BOOTING);
-            runBootSequence(() => setState(STATES.CHARACTER_SELECT));
+
+            setTimeout(() => {
+                runBootSequence(() => setState(STATES.CHARACTER_SELECT));
+            }, 50);
         }
-        if (keyInput.value.toLowerCase() === "n") {
+
+        if (value === "n") {
             window.close();
         }
+
         keyInput.value = "";
     });
-
 });
+
