@@ -1,4 +1,5 @@
 // Minimal state machine. The UwU code, as it were
+// We are NOT calling it that -R
 
 let apiKey = null;
 let characterListLoaded = false;
@@ -10,6 +11,7 @@ const STATES = {
     KEY_CONFIRM: "KEY_CONFIRM",
     BOOTING: "BOOTING",
     CHARACTER_SELECT: "CHARACTER_SELECT",
+    INVENTORY_VIEW: "INVENTORY_VIEW",
     LOCKED: "LOCKED"
 };
 
@@ -25,6 +27,10 @@ function setState(newState) {
         characterListLoaded = false;
     }
 
+    if (typeof hideItemTooltip === "function") hideItemTooltip();
+
+
+
     render();
 }
 
@@ -34,6 +40,7 @@ function render() {
     if (currentState === STATES.BOOTING) renderBooting();
     if (currentState === STATES.CHARACTER_SELECT) renderCharacterSelect();
     if (currentState === STATES.LOCKED) renderLocked();
+    if (currentState === STATES.INVENTORY_VIEW) renderInventoryView();
 }
 
 // The render-y shit
@@ -42,12 +49,14 @@ function renderIntro() {
     document.getElementById("intro-screen").style.display = "flex";
     document.getElementById("key-confirm-screen").style.display = "none";
     document.getElementById("character-select").style.display = "none";
+    document.getElementById("inventory-view").style.display = "none";
     document.getElementById("boot-log").style.display = "none";
 }
 
 function renderKeyConfirm() {
     document.getElementById("intro-screen").style.display = "none";
     document.getElementById("character-select").style.display = "none";
+    document.getElementById("inventory-view").style.display = "none";
     document.getElementById("boot-log").style.display = "none";
 
     const screen = document.getElementById("key-confirm-screen");
@@ -65,9 +74,9 @@ function renderKeyConfirm() {
 
 function renderBooting() {
     console.log("renderBooting called");
-    //document.getElementById("intro-screen").style.display = "none"; 
     document.getElementById("key-confirm-screen").style.display = "none";
     document.getElementById("character-select").style.display = "none";
+    document.getElementById("inventory-view").style.display = "none";
     document.getElementById("boot-log").style.display = "block";
 }
 
@@ -77,6 +86,7 @@ function renderCharacterSelect() {
     document.getElementById("boot-log").style.display = "none";
 
     const characterSelect = document.getElementById("character-select");
+    document.getElementById("inventory-view").style.display = "none";
     characterSelect.style.display = "grid";
 
     if (!characterListLoaded) {
@@ -84,7 +94,7 @@ function renderCharacterSelect() {
         populateCharacterList();
     }
 }
-
+// Remember the above "dev" / "release"? -X
 function renderLocked() {
     document.body.innerHTML = `
         <div style="
@@ -156,13 +166,14 @@ function runBootSequence(onComplete) {
 }
 
 // Wiring
-
+// Messages that will display if you fail to insert a proper apikey. Seriously, is critical thinking hard for you? -K
+// You of all people do not get to say that -R
 const shameMessages = [
     "Are you stupid? Paste an API key.",
     "That is not an API key.",
     "Nice try. Still not an API key.",
     "You had one job.",
-    "This is not how computers work.",
+    "Your mother should have swallowed you.",
     "Incorrect. Try again.",
     "Traces of Melvis detected. Intelligence not found.",
     "API keys have hyphens. This does not.",
@@ -276,7 +287,7 @@ async function loadCharacterDetails(name, profElement) {
 
         if (data.map_id) {
             const mapRes = await fetch(
-                `https://api.guildwars2.com/v2/maps/${data.map_id}`
+                `https://api.guildwars2.com/v2/maps/${data.map_id}` //This one requires you to be online, on the character. Its kind of useless :/
             );
 
             if (mapRes.ok) {
@@ -292,6 +303,21 @@ async function loadCharacterDetails(name, profElement) {
             <p><strong>Location:</strong> ${mapName}</p>
             <p><strong>Elite Spec:</strong> ${eliteSpecName}</p>
         `;
+
+
+        // Inventory button: because clicking things is apparently how we do UX -X
+        // Is that a double X? -K
+        const inventoryBtn = document.createElement("button");
+        inventoryBtn.className = "account-btn";
+        inventoryBtn.textContent = "View Inventory";
+
+        inventoryBtn.addEventListener("click", () => {
+            currentInventoryCharacter = name;
+            setState(STATES.INVENTORY_VIEW);
+        });
+
+        detailPanel.appendChild(document.createElement("br"));
+        detailPanel.appendChild(inventoryBtn);
     } catch (err) {
         console.error(err);
         detailPanel.innerHTML = "<div>Failed to load character.</div>";
@@ -362,22 +388,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (dialogIndex >= confirmDialogs.length) {
             console.log("Triggering BOOT state");
-    
+
             modal.style.display = "none";
             warningText.style.display = "block";
 
             setState(STATES.BOOTING);
-            
-            setTimeout(() => {
-            console.log("Calling runBootSequence");
-            runBootSequence(() => {
-                console.log("Boot complete → switching to CHARACTER_SELECT");
-                setState(STATES.CHARACTER_SELECT);
-            });
-        }, 50);
 
-        return;
-    }
+            setTimeout(() => {
+                console.log("Calling runBootSequence");
+                runBootSequence(() => {
+                    console.log("Boot complete → switching to CHARACTER_SELECT");
+                    setState(STATES.CHARACTER_SELECT);
+                });
+            }, 50);
+
+            return;
+        }
 
         modalText.textContent = confirmDialogs[dialogIndex];
 
@@ -427,6 +453,245 @@ const inventoryCategories = [
 ];
 
 let currentInventoryCharacter = null;
+
+// Character inventory, tooltips on hover
+// Real tooltips is the goal, cus who the fuck doesnt like looking at a picture and playing, "which fucking mini is that?" -R
+
+let _tooltipToken = 0;
+let _tooltipEl = null;
+let _tooltipRAF = 0;
+let _tooltipMouseX = 0;
+let _tooltipMouseY = 0;
+
+function getTooltipEl() {
+    if (_tooltipEl) return _tooltipEl;
+    _tooltipEl = document.getElementById("item-tooltip");
+
+    // If the HTML didn't include it, fabricate one. (Yes, I'm enabling bad habits) -X
+    if (!_tooltipEl) {
+        _tooltipEl = document.createElement("div");
+        _tooltipEl.id = "item-tooltip";
+        document.body.appendChild(_tooltipEl);
+    }
+    return _tooltipEl;
+}
+
+function hideItemTooltip() {
+    const el = getTooltipEl();
+    el.style.display = "none";
+    el.innerHTML = "";
+    _tooltipToken++;
+}
+
+function sanitizeGw2Text(text) {
+    if (!text) return "";
+    // Strip HTML tags and GW2's weird <c=@...> color tags -X
+    return String(text)
+        .replace(/<\/?c[^>]*>/gi, "")
+        .replace(/<[^>]+>/g, "")
+        .replace(/\r?\n/g, "\n")
+        .trim();
+}
+
+function scheduleTooltipReposition() {
+    if (_tooltipRAF) return;
+    _tooltipRAF = requestAnimationFrame(() => {
+        _tooltipRAF = 0;
+        positionTooltip(_tooltipMouseX, _tooltipMouseY);
+    });
+}
+
+function positionTooltip(x, y) {
+    const el = getTooltipEl();
+    if (el.style.display === "none") return;
+
+    const pad = 12;
+    const rect = el.getBoundingClientRect();
+    const maxX = window.innerWidth - rect.width - pad;
+    const maxY = window.innerHeight - rect.height - pad;
+
+    let left = x + pad;
+    let top = y + pad;
+
+    if (left > maxX) left = Math.max(pad, x - rect.width - pad);
+    if (top > maxY) top = Math.max(pad, y - rect.height - pad);
+
+    el.style.left = left + "px";
+    el.style.top = top + "px";
+}
+
+async function fetchJsonSafe(url) {
+    try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (e) {
+        return null;
+    }
+}
+
+async function getItemStatDef(statId) {
+    if (!statId) return null;
+
+    renderInventoryGrid._itemStatCache = renderInventoryGrid._itemStatCache || new Map();
+    const cache = renderInventoryGrid._itemStatCache;
+
+    if (cache.has(statId)) return cache.get(statId);
+
+    const data = await fetchJsonSafe(`https://api.guildwars2.com/v2/itemstats/${statId}`);
+    cache.set(statId, data);
+    return data;
+}
+
+async function ensureItemDefs(ids) {
+    if (!ids || !ids.length) return;
+
+    const itemDefCache = renderInventoryGrid._itemDefCache || new Map();
+    renderInventoryGrid._itemDefCache = itemDefCache;
+
+    const missing = [];
+    for (const id of ids) {
+        if (id && !itemDefCache.has(id)) missing.push(id);
+    }
+    if (!missing.length) return;
+
+    // /v2/items supports 200 ids per call, as opposed to not batching them and getting back "haha, fuck you" error -K
+    for (let i = 0; i < missing.length; i += 200) {
+        const chunk = missing.slice(i, i + 200);
+        const idsStr = chunk.join(",");
+        const defs = await fetchJsonSafe(`https://api.guildwars2.com/v2/items?ids=${idsStr}`);
+        if (!defs) continue;
+
+        for (const def of defs) {
+            if (def && def.id) itemDefCache.set(def.id, def);
+        }
+    }
+}
+
+function formatAttributes(attrs) {
+    if (!attrs) return "";
+    const parts = [];
+    for (const [k, v] of Object.entries(attrs)) {
+        parts.push(`${k}: ${v}`);
+    }
+    return parts.join(" • ");
+}
+
+function buildTooltipHTML(invItem, itemDef, statDef, upgradeNames) {
+    const name = (itemDef && itemDef.name) ? itemDef.name : `Item ${invItem ? invItem.id : "?"}`;
+    const rarity = itemDef && itemDef.rarity ? itemDef.rarity : "";
+    const type = itemDef && itemDef.type ? itemDef.type : "";
+    const level = itemDef && typeof itemDef.level === "number" ? itemDef.level : "";
+    const count = invItem && invItem.count ? invItem.count : 1;
+
+    const desc = sanitizeGw2Text(itemDef && itemDef.description ? itemDef.description : "");
+
+    const lines = [];
+
+    if (rarity || type || level !== "") {
+        const meta = [rarity, type, level !== "" ? `Lvl ${level}` : ""].filter(Boolean).join(" • ");
+        if (meta) lines.push(`<div class="tt-meta">${meta}</div>`);
+    }
+
+    if (count > 1) lines.push(`<div class="tt-line">Count: ${count}</div>`);
+
+    if (invItem) {
+        if (invItem.binding) lines.push(`<div class="tt-line">Binding: ${invItem.binding}</div>`);
+        if (invItem.bound_to) lines.push(`<div class="tt-line">Bound to: ${invItem.bound_to}</div>`);
+    }
+
+    // Equipment-ish details -R
+    const details = itemDef && itemDef.details ? itemDef.details : null;
+    if (details) {
+        if (typeof details.defense === "number") lines.push(`<div class="tt-line">Defense: ${details.defense}</div>`);
+        if (details.weight_class) lines.push(`<div class="tt-line">Weight: ${details.weight_class}</div>`);
+        if (details.damage_type) lines.push(`<div class="tt-line">Damage: ${details.damage_type}</div>`);
+        if (typeof details.min_power === "number" && typeof details.max_power === "number") {
+            lines.push(`<div class="tt-line">Power: ${details.min_power}–${details.max_power}</div>`);
+        }
+    }
+
+    // Chosen stats (if the item instance has them) -X
+    if (invItem && invItem.stats) {
+        const statName = statDef && statDef.name ? statDef.name : (invItem.stats.id ? `Stat ${invItem.stats.id}` : "Stats");
+        const attrs = invItem.stats.attributes || (statDef ? statDef.attributes : null);
+        const attrText = formatAttributes(attrs);
+        lines.push(`<div class="tt-line">Stats: ${sanitizeGw2Text(statName)}${attrText ? ` — ${attrText}` : ""}</div>`);
+    }
+
+    // Upgrades (runes/sigils/infusions), best-effort -X
+    if (upgradeNames && upgradeNames.length) {
+        lines.push(`<div class="tt-line">Upgrades: ${upgradeNames.map(sanitizeGw2Text).join(", ")}</div>`);
+    }
+
+    if (desc) {
+        lines.push(`<div class="tt-desc">${desc.replace(/\n/g, "<br/>")}</div>`);
+    }
+
+    return `
+        <div class="tt-name">${sanitizeGw2Text(name)}</div>
+        ${lines.join("")}
+    `;
+}
+
+function attachItemTooltip(slotEl, invItem, itemDef) {
+    slotEl.addEventListener("mouseenter", (e) => {
+        _tooltipMouseX = e.clientX;
+        _tooltipMouseY = e.clientY;
+
+        const el = getTooltipEl();
+        const myToken = ++_tooltipToken;
+
+        el.style.display = "block";
+        el.innerHTML = buildTooltipHTML(invItem, itemDef, null, null);
+        positionTooltip(_tooltipMouseX, _tooltipMouseY);
+
+        // Lazy-load the extra details (stats + upgrades) and update tooltip when ready -K
+        (async () => {
+            // If user already moved away, don't bother. (read, fuck em) -X
+            if (myToken !== _tooltipToken) return;
+
+            // Stats
+            let statDef = null;
+            if (invItem && invItem.stats && invItem.stats.id) {
+                statDef = await getItemStatDef(invItem.stats.id);
+            }
+
+            // Upgrades (item ids)
+            const upgradeIds = [];
+            if (invItem && Array.isArray(invItem.upgrades)) upgradeIds.push(...invItem.upgrades);
+            if (invItem && Array.isArray(invItem.infusions)) upgradeIds.push(...invItem.infusions);
+
+            if (upgradeIds.length) {
+                await ensureItemDefs(upgradeIds);
+            }
+
+            if (myToken !== _tooltipToken) return;
+
+            const defCache = renderInventoryGrid._itemDefCache || new Map();
+            const upgradeNames = upgradeIds
+                .map(id => (defCache.get(id) && defCache.get(id).name) ? defCache.get(id).name : null)
+                .filter(Boolean);
+
+            el.innerHTML = buildTooltipHTML(invItem, itemDef, statDef, upgradeNames);
+            positionTooltip(_tooltipMouseX, _tooltipMouseY);
+        })();
+    });
+
+    slotEl.addEventListener("mousemove", (e) => {
+        _tooltipMouseX = e.clientX;
+        _tooltipMouseY = e.clientY;
+        scheduleTooltipReposition();
+    });
+
+    slotEl.addEventListener("mouseleave", () => {
+        hideItemTooltip();
+    });
+}
+
+// End of hover tips system, thank you for reading -K
+
+
 
 function renderInventoryView() {
     document.getElementById("intro-screen").style.display = "none";
@@ -486,64 +751,119 @@ async function renderInventoryGrid(filter = "ALL ITEMS") {
 
     const myToken = ++inventoryRenderToken;
 
-    try {
-        const response = await fetch(
-            `https://api.guildwars2.com/v2/characters/${encodeURIComponent(currentInventoryCharacter)}/inventory?access_token=${apiKey}`
+    // Lazy caches, because hammering /v2/items one by one is for unhinged people -X
+    // So like Kazu? -R
+    // Keyed by character name -X
+    if (!renderInventoryGrid._inventoryCache) renderInventoryGrid._inventoryCache = new Map();
+    // Keyed by item id -X
+    if (!renderInventoryGrid._itemDefCache) renderInventoryGrid._itemDefCache = new Map();
+    // Keyed by fuck both of you -K
+    const inventoryCache = renderInventoryGrid._inventoryCache;
+    const itemDefCache = renderInventoryGrid._itemDefCache;
+
+    function matchesFilter(filterName, itemType) {
+        if (filterName === "ALL ITEMS") return true;
+
+        return (
+            (filterName === "WEAPONS" && itemType === "Weapon") ||
+            (filterName === "ARMOR" && itemType === "Armor") ||
+            (filterName === "TRINKETS" && itemType === "Trinket") ||
+            (filterName === "CONSUMABLES" && itemType === "Consumable") ||
+            (filterName === "MATERIALS" && itemType === "CraftingMaterial") ||
+            (filterName === "MISC" &&
+                itemType !== "Weapon" &&
+                itemType !== "Armor" &&
+                itemType !== "Trinket" &&
+                itemType !== "Consumable" &&
+                itemType !== "CraftingMaterial"
+            )
         );
+    }
 
-        if (!response.ok) throw new Error("Inventory fetch failed");
+    function chunk(arr, size) {
+        const out = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+    }
 
-        const data = await response.json();
+    try {
+        // Abort if a newer render started, Seriously, how many of these are there? -K
+        if (myToken !== inventoryRenderToken) return;
 
-        const allItems = [];
+        // Pull inventory once per character (unless you *want* to DDOS yourself) ...Dont you fucking say it -R
+        // o3o Meanie -K
+        let allItems = inventoryCache.get(currentInventoryCharacter);
 
-        data.bags.forEach(bag => {
-            if (!bag || !bag.inventory) return;
-            bag.inventory.forEach(item => {
-                if (item) allItems.push(item);
+        if (!allItems) {
+            const response = await fetch(
+                `https://api.guildwars2.com/v2/characters/${encodeURIComponent(currentInventoryCharacter)}/inventory?access_token=${apiKey}`
+            );
+
+            if (!response.ok) throw new Error("Inventory fetch failed");
+
+            const data = await response.json();
+
+            allItems = [];
+
+            data.bags.forEach(bag => {
+                if (!bag || !bag.inventory) return;
+                bag.inventory.forEach(item => {
+                    if (item && item.id) allItems.push(item);
+                });
             });
-        });
 
-        for (const item of allItems) {
+            inventoryCache.set(currentInventoryCharacter, allItems);
+        }
 
+        // Abort if a newer render started
+        if (myToken !== inventoryRenderToken) return;
+
+        if (!allItems.length) {
+            grid.innerHTML = "<div>No inventory items found.</div>";
+            return;
+        }
+
+        // Batch-resolve item definitions (200 ids max per call)
+        const uniqueIds = Array.from(new Set(allItems.map(i => i.id)));
+        const missingIds = uniqueIds.filter(id => !itemDefCache.has(id));
+
+        for (const batch of chunk(missingIds, 200)) {
             // Abort if a newer render started
             if (myToken !== inventoryRenderToken) return;
 
-            const itemRes = await fetch(
-                `https://api.guildwars2.com/v2/items/${item.id}`
-            );
+            if (!batch.length) continue;
+
+            const ids = batch.join(",");
+            const itemRes = await fetch(`https://api.guildwars2.com/v2/items?ids=${ids}`);
 
             if (!itemRes.ok) continue;
 
-            const itemData = await itemRes.json();
-            if (filter !== "ALL ITEMS") {
+            const itemDefs = await itemRes.json();
+            itemDefs.forEach(def => {
+                if (def && def.id) itemDefCache.set(def.id, def);
+            });
+        }
 
-                const type = itemData.type;
+        // Abort if a newer render started | God I love making these /s -X
+        if (myToken !== inventoryRenderToken) return;
 
-                const matches =
-                    (filter === "WEAPONS" && type === "Weapon") ||
-                    (filter === "ARMOR" && type === "Armor") ||
-                    (filter === "TRINKETS" && type === "Trinket") ||
-                    (filter === "CONSUMABLES" && type === "Consumable") ||
-                    (filter === "MATERIALS" && type === "CraftingMaterial") ||
-                    (filter === "MISC" && 
-                        type !== "Weapon" &&
-                        type !== "Armor" &&
-                        type !== "Trinket" &&
-                        type !== "Consumable" &&
-                        type !== "CraftingMaterial"
-                );
+        // Render filtered grid. /) <- doesnt that look like a hoof? -K
+        const frag = document.createDocumentFragment();
+        let rendered = 0;
 
-            if (!matches) continue;
-}
+        for (const item of allItems) {
+            // Abort if a newer render started
+            if (myToken !== inventoryRenderToken) return;
 
+            const itemData = itemDefCache.get(item.id);
+            if (!itemData) continue;
+            if (!matchesFilter(filter, itemData.type)) continue;
             const slot = document.createElement("div");
             slot.className = "item-slot";
 
             const img = document.createElement("img");
-            img.src = itemData.icon;
-            img.title = itemData.name;
-
+            img.src = itemData.icon || "";
+            img.alt = itemData.name || `Item ${item.id}`;
             slot.appendChild(img);
 
             if (item.count && item.count > 1) {
@@ -553,7 +873,18 @@ async function renderInventoryGrid(filter = "ALL ITEMS") {
                 slot.appendChild(count);
             }
 
-            grid.appendChild(slot);
+            // Tooltip hook (this function exists earlier in file) -X
+            attachItemTooltip(slot, item, itemData);
+
+            frag.appendChild(slot);
+            rendered++;
+
+        }
+
+        grid.appendChild(frag);
+
+        if (rendered === 0) {
+            grid.innerHTML = `<div>No items match: ${filter}</div>`;
         }
 
     } catch (err) {
@@ -563,36 +894,67 @@ async function renderInventoryGrid(filter = "ALL ITEMS") {
 }
 
 
-//add inventory button to char deets
 
-const originalLoadCharacterDetails = loadCharacterDetails;
 
-loadCharacterDetails = async function(name, profElement) {
-    await originalLoadCharacterDetails(name, profElement);
 
-    const detailPanel = document.getElementById("character-details");
+// The Graveyard of why the fuck does this even exist
 
-    const inventoryBtn = document.createElement("button");
-    inventoryBtn.className = "account-btn";
-    inventoryBtn.textContent = "View Inventory";
 
-    inventoryBtn.addEventListener("click", () => {
-        currentInventoryCharacter = name;
-        setState(STATES.INVENTORY_VIEW);
-        renderInventoryView();
-    });
+if (false) {
 
-    detailPanel.appendChild(document.createElement("br"));
-    detailPanel.appendChild(inventoryBtn);
-};
+    // render() extends to support inv view -X
+    // NOTE: no longer needed (core render() now handles INVENTORY_VIEW) -R
+    const originalRender = render;
 
-//render() extends to support inv view
-
-const originalRender = render;
-
-render = function() {
-    originalRender();
-    if (currentState === STATES.INVENTORY_VIEW) {
-        renderInventoryView();
+    render = function () {
+        originalRender();
+        if (currentState === STATES.INVENTORY_VIEW) {
+            renderInventoryView();
+        }
     }
-};
+}
+// Were disabling this? -K
+// Legacy monkey-patch approach, its been reformatted further up -R
+if (false) {
+    const originalLoadCharacterDetails = loadCharacterDetails;
+
+    loadCharacterDetails = async function (name, profElement) {
+        await originalLoadCharacterDetails(name, profElement);
+
+        const detailPanel = document.getElementById("character-details");
+
+        const inventoryBtn = document.createElement("button");
+        inventoryBtn.className = "account-btn";
+        inventoryBtn.textContent = "View Inventory";
+
+        inventoryBtn.addEventListener("click", () => {
+            currentInventoryCharacter = name;
+            setState(STATES.INVENTORY_VIEW);
+
+        });
+
+        detailPanel.appendChild(document.createElement("br"));
+        detailPanel.appendChild(inventoryBtn);
+    };
+}
+// dupy slot render snip -X
+if (false) {
+    const slot = document.createElement("div");
+    slot.className = "item-slot";
+
+    const img = document.createElement("img");
+    img.src = itemData.icon;
+    img.title = itemData.name;
+
+    slot.appendChild(img);
+
+    if (item.count && item.count > 1) {
+        const count = document.createElement("div");
+        count.className = "item-count";
+        count.textContent = item.count;
+        slot.appendChild(count);
+    }
+
+    grid.appendChild(slot);
+
+}

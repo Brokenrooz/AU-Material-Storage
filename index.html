@@ -150,11 +150,13 @@
         }
 
         /*Center Panel Controls*/
-        #character-info {
+        #character-info,
+        #character-details {
             padding: 1.5rem;
         }
 
-        #character-info h2 {
+        #character-info h2,
+        #character-details h2 {
             margin-top: 0;
         }
 
@@ -184,11 +186,11 @@
         .terminal-entry {
             padding: 0.4rem 0.2rem;
             cursor: pointer;
-            color: #a06666;
+            color: #888; /* was #a06666 (terminal proto) */
         }
 
         .terminal-entry.active {
-            color: #d1c4c4;
+            color: #d0d0d0; /* was #d1c4c4 (terminal proto) */
         }
 
         .terminal-entry:hover {
@@ -226,10 +228,10 @@
         #inventory-view {
             position: fixed;
             inset: 0;
-            background: #0b0f0b;
+            background: #0b0b0b; /* was #0b0f0b (terminal proto) */
             display: none;
             grid-template-columns: 1fr 2fr 1fr;
-            color: #b9aaaa;
+            color: #c0c0c0; /* was #b9aaaa (terminal proto) */
             font-family: monospace;
         }
 
@@ -308,7 +310,7 @@
 
     <div style="
         background:#000;
-        color:rgb(145, 41, 0);
+        color:rgb(255, 0, 0);
         padding:1.5rem;
         width:520px;
         font-family:monospace;
@@ -323,7 +325,7 @@
                 maxlength="1"
                 style="
                     background:#000;
-                    color:rgb(145, 41, 0);
+                    color:rgb(255, 0, 0);
                     border:none;
                     outline:none;
                     font-family:monospace;
