@@ -1,0 +1,43 @@
+# Contributing
+
+Thanks for contributing to **AU Material Storage (AUMS)**.
+
+This project is a GW2 API-powered Electron app intended for **read-only account/character browsing** (materials, inventory, etc.). Keep it safe, keep it legal, keep it focused. 
+
+
+---
+
+## Rules
+
+1) **No private data.**
+   - Never commit API keys, tokens, emails, account IDs, character names tied to personal info, or logs containing sensitive info.
+   - If you need sample payloads, redact them.
+
+2) **No automation / scraping / injection.**
+   - No gameplay automation, input simulation, memory reads/writes, packet capture, overlay injection, or anything that could violate ArenaNet/NCSOFT terms.
+   - This repo is for **official API consumption** only. :contentReference[oaicite:1]{index=1}
+
+3) **Keep changes focused.**
+   - One PR = one feature/fix/patch set.
+   - Don’t mix UI styling, refactors, and new endpoints in one PR. :contentReference[oaicite:2]{index=2}
+
+4) **Preserve commentary + intentional “redundant” code.**
+   - Do not delete existing comments/humor/“graveyard” code unless the maintainer explicitly asks.
+   - If you must remove something for correctness, make it explicit and explain why.
+
+5) **Patch-style edits preferred.**
+   - When practical, submit changes as targeted diffs (small, readable edits) rather than wholesale file rewrites.
+
+---
+
+## Development Setup
+
+### Requirements
+- Node.js + npm
+- Windows recommended (GW2 ecosystem reality)
+
+### Install
+```bash
+git clone <repo-url>
+cd AU-Material-Storage
+npm install
